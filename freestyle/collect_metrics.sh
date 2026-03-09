@@ -21,7 +21,8 @@ for machine in "${MACHINES[@]}"; do
     echo "Fetching $SRC_FILE from $machine..."
     touch "./${machine}_${DATE_TIME}_${SRC_FILE}"  # Create empty file to simulate scp
     echo  "${machine},${DATE},${RANDOM_NUM}" >>"./${machine}_${DATE_TIME}_${SRC_FILE}"  # Simulate fetching file (replace with actual scp command)
-    if [ $? -eq 0 ]; then
+    status=$?
+    if [ $status -eq 0 ]; then
         echo "✓ Success from $machine"
     else
         echo "✗ Failed from $machine"
