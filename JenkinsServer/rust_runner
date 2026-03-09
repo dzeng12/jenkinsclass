@@ -1,0 +1,33 @@
+FROM jenkins/inbound-agent:latest
+
+USER root
+COPY MITRE_BA_ROOT.crt /usr/local/share/ca-certificates/corp-root-ca.crt
+
+# Install ca-certificates and import the custom CA certificate into the Java keystore
+RUN apt-get update && apt-get install -y ca-certificates openssl \
+ && update-ca-certificates \
+ && keytool -importcert -noprompt -trustcacerts \
+      -alias corp-root-ca \
+      -file /usr/local/share/ca-certificates/corp-root-ca.crt \
+      -keystore "$JAVA_HOME/lib/security/cacerts" \
+      -storepass changeit
+
+# Install Rust and build tools
+RUN apt-get update && apt-get install -y \
+    curl \
+    build-essential \
+    pkg-config \
+    libssl-dev \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Rust
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+
+# Add Rust to PATH
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+# Verify Rust installation
+RUN rustc --version && cargo --version
+
+USER jenkins

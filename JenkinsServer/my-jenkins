@@ -1,12 +1,31 @@
-# Use the official Jenkins LTS image as base
+# -----------------------------------------------------------------------------
+# File: JenkinsServer/my-jenkins
+# Purpose: Build a custom Jenkins image with:
+# - Corporate root CA trust configured for OS + Java
+# - Common tooling (curl, git, openssl)
+# - Jenkins user added to the docker group
+# - Docker plugin preinstalled
+#
+# Build context requirement:
+# - `MITRE_BA_ROOT.crt` must be present in the same build context directory.
+#
+# Typical usage:
+# - Build: docker build -f JenkinsServer/my-jenkins -t custom-jenkins .
+# - Run:   docker run -p 8080:8080 -p 50000:50000 custom-jenkins
+# -----------------------------------------------------------------------------
+
+# Use the official Jenkins image as the base.
 FROM jenkins/jenkins:latest
 
-# Switch to root to install extra packages (optional)
-
+# Switch to root for package installation and system-level certificate updates.
 USER root
-COPY ./cert/MITRE_BA_ROOT.crt /usr/local/share/ca-certificates/corp-root-ca.crt
 
-RUN apt-get update && apt-get install -y ca-certificates openssl \
+# Add the corporate root certificate to the Linux trust store location.
+COPY MITRE_BA_ROOT.crt /usr/local/share/ca-certificates/corp-root-ca.crt
+
+# Install required packages, refresh trust store, and import the same certificate
+# into the JVM cacerts keystore so Java-based Jenkins plugins trust internal TLS.
+RUN apt-get update && apt-get install -y ca-certificates openssl  curl git\
  && update-ca-certificates \
  && keytool -importcert -noprompt -trustcacerts \
       -alias corp-root-ca \
@@ -14,15 +33,23 @@ RUN apt-get update && apt-get install -y ca-certificates openssl \
       -keystore "$JAVA_HOME/lib/security/cacerts" \
       -storepass changeit
 
+# Ensure the `jenkins` user can access the Docker socket when mounted from host.
+RUN groupadd -f docker && usermod -aG docker jenkins
 
-# Create a volume for Jenkins home (persistent config and jobs)
+# Keep image size smaller by cleaning apt metadata.
+RUN rm -rf /var/lib/apt/lists/*
+
+# Persist Jenkins configuration, plugins, and jobs.
 VOLUME /var/jenkins_home
 
-# Expose Jenkins web UI and agent ports
+# Expose Jenkins web UI and inbound agent port.
 EXPOSE 8080 50000
 
-# Drop back to the jenkins user for runtime
+# Run Jenkins as non-root for normal operation.
 USER jenkins
+
+# Preinstall Docker plugin at image build time for faster first boot.
+RUN jenkins-plugin-cli --plugins docker-plugin
 
 # Jenkins entrypoint is already defined in the base image
 # So we just inherit it; no CMD or ENTRYPOINT needed.

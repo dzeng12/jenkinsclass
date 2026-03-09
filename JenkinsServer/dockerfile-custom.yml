@@ -1,10 +1,41 @@
-docker build -t my-jenkins .
-docker image ls
-docker run -d --name jenkins \
-  -p 8080:8080 -p 50000:50000 \
-  -v jenkins_home:/var/jenkins_home \
-  my-jenkins-lts
-  docker container ls
-docker exec -it 9e5c4e2e2005 sh -c 'cat /var/jenkins_home/secrets/initialAdminPassword'
 
-Paste password in browser to access Jenkins dashboard. Then, install suggested plugins and create admin user. After that, you can start using Jenkins for your CI/CD pipelines.
+services:
+  jenkins:
+    build:
+      context: .
+      dockerfile: my-jenkins     # your custom controller image 
+    container_name: jenkins
+    group_add:
+      - "998" # Add jenkins user to docker group (GID 999) for Docker socket access
+    ports:
+      - "8080:8080"              # Jenkins UI 
+      - "50000:50000"            # Inbound agent port 
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - ./cert:/cert:ro          # for MITRE_BA_ROOT.crt COPY 
+      - /var/run/docker.sock:/var/run/docker.sock 
+    restart: unless-stopped
+
+  rust-runner:
+    build:
+      context: .
+      dockerfile: rust_runner    # your Rust-capable inbound agent 
+    container_name: rust-runner
+    depends_on:
+      - jenkins
+    environment:
+      # Required for automatic inbound connection 
+      JENKINS_URL: "http://jenkins:8080"
+      JENKINS_SECRET: "REPLACE_WITH_AGENT_SECRET"
+      JENKINS_AGENT_NAME: "rust-runner"
+      JENKINS_AGENT_WORKDIR: "/home/jenkins/agent"
+      JENKINS_WEB_SOCKET: "true"
+    volumes:
+      - rust_runner_workdir:/home/jenkins/agent   # persist agent workspace 
+      - ./cert:/cert:ro                           # same CA cert path
+     # allow Docker-in-Docker for builds
+    restart: unless-stopped
+
+volumes:
+  jenkins_home:
+  rust_runner_workdir:
