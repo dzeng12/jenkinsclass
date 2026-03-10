@@ -19,8 +19,11 @@ RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
     git \
-    cargo \
-    && rm -rf /var/lib/apt/lists/*
+    cargo
+
+RUN apt-get install -y rust-clippy rustfmt
+
+RUN rm -rf /var/lib/apt/lists/*
 
 USER jenkins
 
