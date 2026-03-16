@@ -33,6 +33,15 @@ RUN apt-get update && apt-get install -y ca-certificates openssl  curl git\
       -keystore "$JAVA_HOME/lib/security/cacerts" \
       -storepass changeit
 
+# Install the Rust toolchain and native build dependencies required by Cargo crates.
+RUN apt-get update && apt-get install -y \
+    curl \
+    build-essential \
+    pkg-config \
+    libssl-dev \
+    git \
+    cargo
+
 # Ensure the `jenkins` user can access the Docker socket when mounted from host.
 RUN groupadd -f docker && usermod -aG docker jenkins
 
